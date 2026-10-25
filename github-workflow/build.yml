@@ -1,0 +1,36 @@
+name: Build VibeSpark (macOS Apple Silicon VST3)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14        # Apple Silicon (M1) runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES=arm64
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Sign (ad-hoc) and package
+        run: |
+          PLUGIN=$(find build -name "VibeSpark.vst3" -type d | head -n 1)
+          echo "Found: $PLUGIN"
+          codesign --force --deep --sign - "$PLUGIN"
+          lipo -info "$PLUGIN/Contents/MacOS/VibeSpark"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$PLUGIN" dist/VibeSpark-macOS-arm64-vst3.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VibeSpark-macOS-arm64-VST3
+          path: dist/VibeSpark-macOS-arm64-vst3.zip
